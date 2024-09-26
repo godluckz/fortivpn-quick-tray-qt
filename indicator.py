@@ -3,16 +3,15 @@
 import sys
 import json
 from os import remove as remove_log_file, path
-from PySide2.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction, QFileDialog, QTextEdit, QMessageBox
-from PySide2.QtGui import QIcon
-from PySide2.QtCore import QThread, Signal
+from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QFileDialog, QTextEdit, QMessageBox
+from PySide6.QtGui import QIcon, QAction
+from PySide6.QtCore import QThread, Signal
 from shlex import split
 from subprocess import Popen, PIPE, TimeoutExpired, run
 from tempfile import NamedTemporaryFile
 from urllib.request import urlopen
 from urllib.error import HTTPError
-from distutils.version import StrictVersion
-
+from packaging.version import Version
 
 class Indicator():
     APP_NAME = 'FortiVPN Quick Tray'
@@ -28,13 +27,15 @@ class Indicator():
 
         self.indicator.activated.connect(self._click_indicator)
 
+        app_version_file = self._get_file('./version')
+        with open(app_version_file) as f:
+            app_version = f.read()
+
         self.logs_dialog = QTextEdit()
-        self.logs_dialog.setWindowTitle(f'{self.APP_NAME} - Logs')
+        self.logs_dialog.setWindowTitle(f'{self.APP_NAME}: Ver.{app_version} - Logs')
         self.logs_dialog.setFixedSize(440, 440)
         self.logs_dialog.setReadOnly(True)
-        self.logs_dialog.setWindowIcon(
-            QIcon(self._get_file('./icons/icon.png'))
-        )
+        self.logs_dialog.setWindowIcon(QIcon(self._get_file('./icons/icon.png')))
 
         self.vpn_config = '/etc/openfortivpn/config'
         self.vpn_process = None
@@ -44,7 +45,7 @@ class Indicator():
         self.vpn_thread.status.connect(self._update_vpn_status)
         self.vpn_thread.log.connect(self.logs_dialog.append)
 
-        self.app_update_thread = AppUpdateThread(self._get_file('./version'))
+        self.app_update_thread = AppUpdateThread(app_version)
         self.app_update_thread.update_available.connect(
             self._show_update_notification
         )
@@ -53,7 +54,7 @@ class Indicator():
         self.user_disconnect = False
 
     def run(self):
-        self.app.exec_()
+        self.app.exec()
         sys.exit()
 
     def _build_menu(self):
@@ -223,7 +224,7 @@ class VPNThread(QThread):
         with open(self.vpn_logs_file.name) as f:
             while True:
                 line = f.readline()
-
+          
                 if len(line) > 0:
                     self.log.emit(line.rstrip())
 
@@ -231,7 +232,7 @@ class VPNThread(QThread):
                     self.status.emit('ERR')
                     break
 
-                if line.find('Tunnel is up and running') != -1:
+                if line.find('Tunnel is up and running') != -1:                
                     self.status.emit('ON')
 
                 if line.find('Logged out') != -1:
@@ -244,10 +245,10 @@ class VPNThread(QThread):
 class AppUpdateThread(QThread):
     update_available = Signal(bool)
 
-    def __init__(self, version_file):
+    def __init__(self, app_version):
         super().__init__(None)
 
-        self.version_file = version_file
+        self.app_version = app_version
 
     def run(self):
         try:
@@ -258,10 +259,8 @@ class AppUpdateThread(QThread):
         except HTTPError:
             return
 
-        with open(self.version_file) as f:
-            current = f.read()
 
-        if StrictVersion(release.get('tag_name')) > StrictVersion(current):
+        if Version(release.get('tag_name')) > Version(self.app_version):
             self.update_available.emit(True)
 
             return

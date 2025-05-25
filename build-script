@@ -1,11 +1,34 @@
 #!/bin/bash
 
+# Define the virtual environment path
+VENV_PATH="./.venv"
+
+# Activate virtual environment
+activate_venv() {
+    if [[ -d "$VENV_PATH" ]]; then
+        if [[ -f "$VENV_PATH/bin/activate" ]]; then
+            source "$VENV_PATH/bin/activate"
+        else
+            echo "Virtual environment activation script not found! Creating a new virtual environment..."
+            python -m venv "$VENV_PATH"
+            source "$VENV_PATH/bin/activate"
+        fi
+        echo "Virtual environment activated."
+    else
+        echo "Virtual environment not found! Creating one..."
+        python -m venv "$VENV_PATH"
+        source "$VENV_PATH/bin/activate"
+        echo "Virtual environment created and activated."
+    fi
+}
+
+
 clean(){
     rm -rf build dist *.spec
 }
 
 build(){
-    ./venv/bin/pyinstaller indicator.py \
+    ./.venv/bin/pyinstaller indicator.py \
         --name 'fortivpn-quick-tray' \
         --onefile \
         --noconsole \
@@ -21,6 +44,7 @@ if [[ -n "$1" ]] && [[ "$1" == '-c' ]]
 then
     clean
 else
+    activate_venv
     clean
     build
 fi
